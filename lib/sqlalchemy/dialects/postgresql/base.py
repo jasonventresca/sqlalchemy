@@ -1238,6 +1238,16 @@ class PGInspector(reflection.Inspector):
         return self.dialect.get_table_oid(self.bind, table_name, schema,
                                           info_cache=self.info_cache)
 
+    def get_foreign_table_names(self, schema=None):
+        """Return a list of FOREIGN TABLE names.
+        Behavior is similar to that of :meth:`.Inspector.get_table_names`,
+        except that the list is limited to those tables tha report a
+        ``relkind`` value of ``f``.
+        .. versionadded:: 1.0.0
+        """
+        schema = schema or self.default_schema_name
+        return self.dialect._get_foreign_table_names(self.bind, schema)
+
 
 class CreateEnumType(schema._CreateDropBase):
     __visit_name__ = "create_enum_type"
@@ -1542,7 +1552,7 @@ class PGDialect(default.DefaultDialect):
             FROM pg_catalog.pg_class c
             LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
             WHERE (%s)
-            AND c.relname = :table_name AND c.relkind in ('r','v')
+            AND c.relname = :table_name AND c.relkind in ('r','v', 'm', 'f')
         """ % schema_where_clause
         # Since we're binding to unicode, table_name and schema_name must be
         # unicode.
@@ -1594,6 +1604,24 @@ class PGDialect(default.DefaultDialect):
                 current_schema,
                 typemap={'relname': sqltypes.Unicode}
             )
+        )
+        return [row[0] for row in result]
+
+    @reflection.cache
+    def _get_foreign_table_names(self, connection, schema=None, **kw):
+        if schema is not None:
+            current_schema = schema
+        else:
+            current_schema = self.default_schema_name
+
+        result = connection.execute(
+            sql.text("SELECT relname FROM pg_class c "
+                     "WHERE relkind = 'f' "
+                     "AND '%s' = (select nspname from pg_namespace n "
+                     "where n.oid = c.relnamespace) " %
+                     current_schema,
+                     typemap={'relname': sqltypes.Unicode}
+                     )
         )
         return [row[0] for row in result]
 

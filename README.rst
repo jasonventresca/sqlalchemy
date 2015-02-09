@@ -1,4 +1,4 @@
-SQLAlchemy 0.8.1
+SQLAlchemy-moat
 ===========
 This is a branch of SQLAlchemy at 0.8.1 with support for Postgres materialized views.
 
